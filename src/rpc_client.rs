@@ -1,13 +1,9 @@
-pub use anycable::rpc_client::RpcClient;
-use anycable::{
+use super::anycable::rpc_client::RpcClient;
+use super::anycable::{
     CommandMessage, CommandResponse, ConnectionRequest, ConnectionResponse, DisconnectRequest,
     DisconnectResponse,
 };
 use std::collections::HashMap;
-
-pub mod anycable {
-    tonic::include_proto!("anycable");
-}
 
 pub async fn connect() -> Result<ConnectionResponse, Box<dyn std::error::Error>> {
     let mut client = RpcClient::connect("http://[::1]:50051").await?;

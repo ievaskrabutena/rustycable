@@ -8,6 +8,3 @@ edition = "2018"
 prost = "0.6.1"
 tokio = { version = "0.2.18", features = ["full"] }
 tonic = "0.2.0"
-
-[build-dependencies]
-tonic-build = { version = "0.2", features = ["rustfmt"] }

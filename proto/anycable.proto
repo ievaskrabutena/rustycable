@@ -3,7 +3,7 @@ syntax = "proto3";
 package anycable;
 
 service RPC {
-  rpc ConnectClient (ConnectionRequest) returns (ConnectionResponse) {}
+  rpc Connect (ConnectionRequest) returns (ConnectionResponse) {}
   rpc Command (CommandMessage) returns (CommandResponse) {}
   rpc Disconnect (DisconnectRequest) returns (DisconnectResponse) {}
 }

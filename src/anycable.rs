@@ -111,7 +111,7 @@ pub mod rpc_client {
                 )
             })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/anycable.RPC/ConnectClient");
+            let path = http::uri::PathAndQuery::from_static("/anycable.RPC/Connect");
             self.inner.unary(request.into_request(), path, codec).await
         }
         pub async fn command(
