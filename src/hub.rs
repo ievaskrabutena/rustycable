@@ -8,6 +8,7 @@ pub struct Hub {
 }
 
 impl Hub {
+    /// Create a hub
     pub fn new() -> Hub {
         Hub {
             sessions: HashMap::new(),
@@ -15,6 +16,7 @@ impl Hub {
         }
     }
 
+    /// Adds an active session to the Hub
     fn add_session(&mut self, session: Arc<Session>) {
         self.sessions.insert(session.uid.clone(), session.clone());
         self.identifiers

@@ -2,6 +2,7 @@ use crate::RustyCable;
 use futures_util::StreamExt as _;
 use std::sync::Arc;
 
+/// Connects to Redis server and subscribes to the appropriate channel
 pub async fn start(app: Arc<RustyCable>) -> Result<(), Box<dyn std::error::Error>> {
     let client = redis::Client::open("redis://127.0.0.1/").expect("Failed to connect to redis");
 

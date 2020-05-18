@@ -6,17 +6,20 @@ use super::anycable::{
 use std::collections::HashMap;
 use tonic::transport::Channel;
 
+/// The data structure that interacts with the anycable gRPC server as a client
 pub struct RpcController {
     client: RpcClient<Channel>,
 }
 
 impl RpcController {
+    /// Creates a connection to the Anycable gRPC server
     pub async fn new() -> Result<RpcController, Box<dyn std::error::Error>> {
         let client = RpcClient::connect("http://[::1]:50051").await?;
 
         Ok(RpcController { client })
     }
 
+    /// Sends a `Connect` message to gRPC server
     pub async fn connect(
         &self,
         headers: HashMap<String, String>,

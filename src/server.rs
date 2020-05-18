@@ -14,6 +14,7 @@ use tokio_tungstenite::{
     tungstenite::Result as TungsteniteResult,
 };
 
+/// Starts the WebSocket server
 pub async fn start(app: Arc<RustyCable>) -> Result<(), Box<dyn std::error::Error>> {
     let addr = String::from("127.0.0.1:8081");
 
@@ -32,6 +33,7 @@ pub async fn start(app: Arc<RustyCable>) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+/// Handles the potential errors of a WebSocket connection
 async fn accept_connection(peer: SocketAddr, stream: TcpStream, app: Arc<RustyCable>) {
     if let Err(e) = handle_connection(peer, stream, app).await {
         match e {
@@ -41,6 +43,7 @@ async fn accept_connection(peer: SocketAddr, stream: TcpStream, app: Arc<RustyCa
     }
 }
 
+/// Makes a handshake with the WebSocket request, then creates a session
 async fn handle_connection(
     peer: SocketAddr,
     stream: TcpStream,

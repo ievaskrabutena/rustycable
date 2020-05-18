@@ -15,8 +15,10 @@ use tokio_tungstenite::{
 };
 use uuid::Uuid;
 
+/// The duration between pings to client
 const PING_INTERVAL: Duration = Duration::from_secs(3);
 
+/// Fetch an UID from `X-Request-ID` header or create one for a session
 fn fetch_or_create_uid(headers: &HashMap<String, String>) -> String {
     headers
         .get("X-Request-ID")
@@ -24,7 +26,7 @@ fn fetch_or_create_uid(headers: &HashMap<String, String>) -> String {
         .into()
 }
 
-/// Session represents an active client
+/// Session represents an active WebSocket connection with a client
 pub struct Session {
     subscriptions: HashMap<String, bool>,
     ws_stream: Mutex<WebSocketStream<TcpStream>>,
@@ -35,6 +37,7 @@ pub struct Session {
 }
 
 impl Session {
+    /// Authentificate the WebSocket stream through gRPC server and create a session
     pub async fn new(
         app: Arc<RustyCable>,
         headers: HashMap<String, String>,
@@ -71,6 +74,7 @@ impl Session {
         }
     }
 
+    /// Setup session to process messages received from the client
     pub async fn read_messages(&self) -> TungsteniteResult<()> {
         let mut ws = self.ws_stream.lock().await;
 
@@ -90,6 +94,7 @@ impl Session {
         Ok(())
     }
 
+    /// Setup session to ping the client every `PING_INTERVAL` seconds while connection is open
     pub async fn send_ping(&self) -> TungsteniteResult<()> {
         let mut interval = tokio::time::interval(PING_INTERVAL);
 
