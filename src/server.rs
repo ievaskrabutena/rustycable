@@ -1,7 +1,6 @@
-use super::hub::Hub;
-use super::rpc_controller::RpcController;
 use super::session::Session;
 
+use super::RustyCable;
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
@@ -14,23 +13,7 @@ use tokio_tungstenite::{
     tungstenite::Result as TungsteniteResult,
 };
 
-pub struct Server {
-    pub controller: RpcController,
-    hub: Hub,
-}
-
-impl Server {
-    pub fn new(controller: RpcController) -> Server {
-        Server {
-            controller,
-            hub: Hub::new(),
-        }
-    }
-}
-
-pub async fn start(controller: RpcController) -> Result<(), Box<dyn std::error::Error>> {
-    let server: Arc<Server> = Arc::new(Server::new(controller));
-
+pub async fn start(app: Arc<RustyCable>) -> Result<(), Box<dyn std::error::Error>> {
     let addr = String::from("127.0.0.1:8081");
 
     let try_socket = TcpListener::bind(&addr).await;
@@ -42,14 +25,14 @@ pub async fn start(controller: RpcController) -> Result<(), Box<dyn std::error::
             .peer_addr()
             .expect("connected streams should have a peer address");
 
-        tokio::spawn(accept_connection(peer, stream, server.clone()));
+        tokio::spawn(accept_connection(peer, stream, app.clone()));
     }
 
     Ok(())
 }
 
-async fn accept_connection(peer: SocketAddr, stream: TcpStream, server: Arc<Server>) {
-    if let Err(e) = handle_connection(peer, stream, server).await {
+async fn accept_connection(peer: SocketAddr, stream: TcpStream, app: Arc<RustyCable>) {
+    if let Err(e) = handle_connection(peer, stream, app).await {
         match e {
             Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
             err => eprintln!("Error processing connection: {}", err),
@@ -60,7 +43,7 @@ async fn accept_connection(peer: SocketAddr, stream: TcpStream, server: Arc<Serv
 async fn handle_connection(
     peer: SocketAddr,
     stream: TcpStream,
-    server: Arc<Server>,
+    app: Arc<RustyCable>,
 ) -> TungsteniteResult<()> {
     let mut headers: HashMap<String, String> = HashMap::new();
     let mut uri = String::new();
@@ -86,7 +69,7 @@ async fn handle_connection(
     .await
     .expect("Failed to accept");
 
-    let session = Session::new(server.clone(), headers, uri, Mutex::new(ws_stream)).await;
+    let session = Session::new(app.clone(), headers, uri, Mutex::new(ws_stream)).await;
 
     tokio::try_join!(session.read_messages(), session.send_ping())?;
 

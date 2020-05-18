@@ -1,4 +1,4 @@
-use super::server::Server;
+use super::RustyCable;
 
 use chrono::Utc;
 use futures_util::SinkExt;
@@ -36,14 +36,14 @@ pub struct Session {
 
 impl Session {
     pub async fn new(
-        server: Arc<Server>,
+        app: Arc<RustyCable>,
         headers: HashMap<String, String>,
         uri: String,
         ws_stream: Mutex<WebSocketStream<TcpStream>>,
     ) -> Session {
         let uid = fetch_or_create_uid(&headers);
 
-        let response = server
+        let response = app
             .controller
             .connect(headers, uri)
             .await
