@@ -89,13 +89,13 @@ impl Session {
     }
 
     pub async fn send_ping(&self) -> TungsteniteResult<()> {
-        if self.closed.load(Ordering::Relaxed) {
-            return Ok(());
-        }
-
         let mut interval = tokio::time::interval(PING_INTERVAL);
 
         while let Some(_) = interval.next().await {
+            if self.closed.load(Ordering::Relaxed) {
+                return Ok(());
+            }
+
             let mut ws = self.ws_stream.lock().await;
 
             let hen = serde_json::to_vec(
