@@ -51,7 +51,7 @@ impl Session {
 
         println!("gRPC server responded with {:?}", response);
 
-        let hen = serde_json::to_vec(&serde_json::json!({ "type": "welcome" }))
+        let hen = serde_json::to_string(&serde_json::json!({ "type": "welcome" }))
             .expect("unable to convert JSON");
 
         {
@@ -77,6 +77,8 @@ impl Session {
         while let Some(msg) = ws.next().await {
             let msg: Message = msg?;
 
+            println!("Received message: {:?}", msg);
+
             if msg.is_text() || msg.is_binary() {
                 ws.send(msg.into()).await?;
             } else if msg.is_close() {
@@ -98,7 +100,7 @@ impl Session {
 
             let mut ws = self.ws_stream.lock().await;
 
-            let hen = serde_json::to_vec(
+            let hen = serde_json::to_string(
                 &serde_json::json!({ "type": "ping", "message": Utc::now().timestamp().to_string()}),
             )
             .expect("unable to convert JSON");
