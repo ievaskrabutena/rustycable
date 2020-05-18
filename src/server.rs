@@ -4,7 +4,6 @@ use super::RustyCable;
 use http::header::HeaderValue;
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::Mutex;
 
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{
@@ -82,7 +81,7 @@ async fn handle_connection(
     .await
     .expect("Failed to accept");
 
-    let session = Session::new(app.clone(), headers, uri, Mutex::new(ws_stream)).await;
+    let session = Session::new(app.clone(), headers, uri, ws_stream).await;
 
     tokio::try_join!(session.read_messages(), session.send_ping())?;
 

@@ -31,4 +31,24 @@ impl RpcController {
         let response = client.connect_client(request).await?;
         Ok(response.into_inner())
     }
+
+    /// Sends a `Command` message to gRPC server
+    pub async fn send_command(
+        &self,
+        command: String,
+        identifier: String,
+        connection_identifiers: String,
+        data: String,
+    ) -> Result<CommandResponse, Box<dyn std::error::Error>> {
+        let mut client = self.client.clone();
+        let message = CommandMessage {
+            command,
+            identifier,
+            connection_identifiers,
+            data: data,
+        };
+
+        let response = client.command(message).await?;
+        Ok(response.into_inner())
+    }
 }

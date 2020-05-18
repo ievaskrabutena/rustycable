@@ -18,7 +18,7 @@ pub async fn start(app: Arc<RustyCable>) -> Result<(), Box<dyn std::error::Error
         .unwrap()
         .get_payload::<Option<String>>()?
     {
-        println!("{:?}", msg);
+        println!("[REDIS] - {:?}", msg);
     }
 
     Ok(())
