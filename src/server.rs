@@ -1,6 +1,7 @@
 use super::session::Session;
-
 use super::RustyCable;
+
+use http::header::HeaderValue;
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
@@ -63,7 +64,16 @@ async fn handle_connection(
                     );
                 });
 
-            Ok(response)
+            let (mut parts, body) = response.into_parts();
+
+            parts.headers.insert(
+                "Sec-Websocket-Protocol",
+                HeaderValue::from_str("actioncable-v1-json").unwrap(),
+            );
+
+            let response_with_protocol = Response::from_parts(parts, body);
+
+            Ok(response_with_protocol)
         },
     )
     .await
