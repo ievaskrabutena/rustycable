@@ -44,6 +44,23 @@ impl RustyCable {
         Ok(())
     }
 
+    pub fn unsubscribe_session(
+        self: Arc<Self>,
+        session_id: String,
+        identifier: String,
+    ) -> tokio::io::Result<()> {
+        self.hub.send(HubAction::Unsubscribe {
+            session_id,
+            identifier,
+        });
+        Ok(())
+    }
+
+    pub fn remove_session(self: Arc<Self>, session: Arc<Session>) -> tokio::io::Result<()> {
+        self.hub.send(HubAction::Remove { session });
+        Ok(())
+    }
+
     pub async fn try_broadcast(self: Arc<Self>, message: RedisMessage) -> tokio::io::Result<()> {
         self.hub.send(HubAction::Broadcast {
             stream: message.stream,

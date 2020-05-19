@@ -62,6 +62,8 @@ pub struct Session {
     ws_reader: Mutex<SplitStream<WebSocketStream<TcpStream>>>,
     ws_writer: Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>,
     closed: AtomicBool,
+    uri: String,
+    headers: HashMap<String, String>,
 
     pub uid: String,
     pub identifiers: String,
@@ -79,7 +81,7 @@ impl Session {
 
         let response = app
             .controller
-            .connect(headers, uri)
+            .connect(headers.clone(), uri.clone())
             .await
             .expect("Failed gRPC connection");
 
@@ -90,6 +92,8 @@ impl Session {
         let session = Session {
             app,
             uid,
+            uri,
+            headers,
             ws_reader: Mutex::new(ws_reader),
             ws_writer: Mutex::new(ws_writer),
             closed: AtomicBool::new(false),
@@ -121,7 +125,26 @@ impl Session {
                 tokio::spawn(self.clone().process_client_message(client_message));
             } else if msg.is_close() {
                 self.closed.store(true, Ordering::Relaxed);
-                self.ws_writer.lock().await.send(msg).await?;
+                let subscriptions: Vec<String> = self
+                    .subscriptions
+                    .read()
+                    .await
+                    .iter()
+                    .map(|(k, _)| k.clone())
+                    .collect();
+                self.app
+                    .clone()
+                    .controller
+                    .disconnect(
+                        self.identifiers.clone(),
+                        subscriptions,
+                        self.uri.clone(),
+                        self.headers.clone(),
+                    )
+                    .await
+                    .expect("error when trying to disconnect");
+                self.app.clone().remove_session(self.clone())?;
+                break;
             }
         }
 
@@ -193,6 +216,10 @@ impl Session {
             .expect("Error while unsubscribing");
 
         self.subscriptions.write().await.remove(&identifier);
+
+        self.app
+            .clone()
+            .unsubscribe_session(self.uid.clone(), identifier);
 
         Some(response)
     }

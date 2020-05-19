@@ -22,7 +22,7 @@ pub enum HubAction {
     },
     Broadcast {
         stream: String,
-        data: serde_json::Value
+        data: serde_json::Value,
     },
     Shutdown,
 }
@@ -76,9 +76,19 @@ impl Hub {
                 HubAction::Unsubscribe {
                     session_id,
                     identifier,
-                } => (),
+                } => {
+                    println!(
+                        "[HUB] - unsubscribe session {} from {}",
+                        session_id, identifier
+                    );
+                    hub.unsubscribe_from_channel(session_id, identifier);
+                }
                 HubAction::Broadcast { stream, data } => {
-                    println!("[HUB] - broadcast called to {} with {:?}", stream, data.as_str().unwrap());
+                    println!(
+                        "[HUB] - broadcast called to {} with {:?}",
+                        stream,
+                        data.as_str().unwrap()
+                    );
                     hub.broadcast(stream, data.as_str().unwrap()).await;
                 }
                 HubAction::Shutdown => break,
@@ -105,7 +115,7 @@ impl Hub {
             return;
         }
 
-        self.unsubscribe_from_channels(session.clone());
+        self.unsubscribe_from_channels(session.uid.clone());
 
         self.sessions.remove(&session.uid);
         self.identifiers
@@ -133,8 +143,35 @@ impl Hub {
         session_streams.get_mut(&identifier).unwrap().push(stream);
     }
 
-    fn unsubscribe_from_channels(&mut self, session: Arc<Session>) {
-        todo!()
+    fn unsubscribe_from_channels(&mut self, session_id: String) {
+        self.session_streams
+            .get_mut(&session_id)
+            .unwrap()
+            .clone()
+            .iter()
+            .for_each(|(key, _)| self.unsubscribe_from_channel(session_id.clone(), key.clone()));
+        self.session_streams.remove(&session_id);
+    }
+
+    fn unsubscribe_from_channel(&mut self, session_id: String, identifier: String) {
+        if !self.session_streams.contains_key(&session_id) {
+            return;
+        }
+
+        let streams = self
+            .session_streams
+            .get(&session_id)
+            .unwrap()
+            .get(&identifier)
+            .unwrap()
+            .clone();
+
+        streams.iter().for_each(|stream_name| {
+            self.streams
+                .get_mut(stream_name)
+                .unwrap()
+                .remove(&session_id);
+        });
     }
 
     pub async fn broadcast(&self, stream: String, data: &str) {
