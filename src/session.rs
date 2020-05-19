@@ -84,8 +84,8 @@ impl Session {
         session
     }
 
-    /// Setup session to process messages received from the client
-    pub async fn read_messages(&self) -> TungsteniteResult<()> {
+    /// Waits for incoming messages from the client
+    pub async fn read_messages(self: Arc<Self>) -> TungsteniteResult<()> {
         let mut reader = self.ws_reader.lock().await;
 
         while let Some(msg) = reader.next().await {
@@ -97,27 +97,38 @@ impl Session {
                 let client_message: ClientMessage = serde_json::from_str(&msg.into_text()?)
                     .expect("Incorrect JSON received from client");
                 println!("{:?}", client_message);
-                let response = self
-                    .app
-                    .controller
-                    .send_command(
-                        client_message.command,
-                        client_message.identifier,
-                        self.identifiers.clone(),
-                        client_message.data.unwrap_or(String::from("")),
-                    )
-                    .await
-                    .expect("Failed gRPC connection");
 
-                println!("[gRPC response] - {:?}", response);
-
-                self.process_transmissions(response.transmissions)
-                    .await
-                    .expect("Failure trying to respond to client");
+                tokio::spawn(self.clone().process_client_message(client_message));
             } else if msg.is_close() {
                 self.closed.store(true, Ordering::Relaxed);
             }
         }
+
+        Ok(())
+    }
+
+    /// Sends client messages to the gRPC server
+    async fn process_client_message(
+        self: Arc<Self>,
+        message: ClientMessage,
+    ) -> TungsteniteResult<()> {
+        let response = self
+            .app
+            .controller
+            .send_command(
+                message.command,
+                message.identifier,
+                self.identifiers.clone(),
+                message.data.unwrap_or(String::from("")),
+            )
+            .await
+            .expect("Failed gRPC connection");
+
+        println!("[gRPC response] - {:?}", response);
+
+        self.process_transmissions(response.transmissions)
+            .await
+            .expect("Failure trying to respond to client");
 
         Ok(())
     }
@@ -138,8 +149,8 @@ impl Session {
         Ok(())
     }
 
-    /// Setup session to ping the client every `PING_INTERVAL` seconds while connection is open
-    pub async fn send_ping(&self) -> TungsteniteResult<()> {
+    /// Schedules session to ping the client every `PING_INTERVAL` seconds while connection is open
+    pub async fn schedule_ping(self: Arc<Self>) -> TungsteniteResult<()> {
         let mut interval = tokio::time::interval(PING_INTERVAL);
 
         while let Some(_) = interval.next().await {
@@ -147,15 +158,22 @@ impl Session {
                 return Ok(());
             }
 
-            let mut writer = self.ws_writer.lock().await;
-
-            let hen = serde_json::to_string(
-                &serde_json::json!({ "type": "ping", "message": Utc::now().timestamp()}),
-            )
-            .expect("unable to convert JSON");
-
-            writer.send(hen.into()).await?;
+            tokio::spawn(self.clone().send_ping());
         }
+
+        Ok(())
+    }
+
+    /// Creates and sends a ping message
+    pub async fn send_ping(self: Arc<Self>) -> TungsteniteResult<()> {
+        let mut writer = self.ws_writer.lock().await;
+
+        let hen = serde_json::to_string(
+            &serde_json::json!({ "type": "ping", "message": Utc::now().timestamp()}),
+        )
+        .expect("unable to convert JSON");
+
+        writer.send(hen.into()).await?;
 
         Ok(())
     }

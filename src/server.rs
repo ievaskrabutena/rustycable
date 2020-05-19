@@ -81,9 +81,12 @@ async fn handle_connection(
     .await
     .expect("Failed to accept");
 
-    let session = Session::new(app.clone(), headers, uri, ws_stream).await;
+    let session = Arc::new(Session::new(app.clone(), headers, uri, ws_stream).await);
 
-    tokio::try_join!(session.read_messages(), session.send_ping())?;
+    tokio::try_join!(
+        session.clone().read_messages(),
+        session.clone().schedule_ping()
+    )?;
 
     Ok(())
 }
