@@ -1,5 +1,6 @@
 use super::RustyCable;
 
+use super::anycable::CommandResponse;
 use chrono::Utc;
 use futures_util::stream::{self, SplitSink, SplitStream, StreamExt};
 use futures_util::SinkExt;
@@ -9,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tokio_tungstenite::{
     tungstenite::{Message, Result as TungsteniteResult},
     WebSocketStream,
@@ -17,8 +18,28 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ClientMessageType {
+    Subscribe,
+    Unsubscribe,
+    Message,
+}
+
+impl ToString for ClientMessageType {
+    fn to_string(&self) -> String {
+        let message_str = match self {
+            ClientMessageType::Subscribe => "subscribe",
+            ClientMessageType::Unsubscribe => "unsubscribe",
+            ClientMessageType::Message => "message",
+        };
+
+        String::from(message_str)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct ClientMessage {
-    command: String,
+    command: ClientMessageType,
     identifier: String,
     data: Option<String>,
 }
@@ -37,7 +58,7 @@ fn fetch_or_create_uid(headers: &HashMap<String, String>) -> String {
 /// Session represents an active WebSocket connection with a client
 pub struct Session {
     app: Arc<RustyCable>,
-    subscriptions: HashMap<String, bool>,
+    subscriptions: RwLock<HashMap<String, bool>>,
     ws_reader: Mutex<SplitStream<WebSocketStream<TcpStream>>>,
     ws_writer: Mutex<SplitSink<WebSocketStream<TcpStream>, Message>>,
     closed: AtomicBool,
@@ -72,7 +93,7 @@ impl Session {
             ws_reader: Mutex::new(ws_reader),
             ws_writer: Mutex::new(ws_writer),
             closed: AtomicBool::new(false),
-            subscriptions: HashMap::new(),
+            subscriptions: RwLock::new(HashMap::new()),
             identifiers: response.identifiers,
         };
 
@@ -96,11 +117,11 @@ impl Session {
             if msg.is_text() {
                 let client_message: ClientMessage = serde_json::from_str(&msg.into_text()?)
                     .expect("Incorrect JSON received from client");
-                println!("{:?}", client_message);
 
                 tokio::spawn(self.clone().process_client_message(client_message));
             } else if msg.is_close() {
                 self.closed.store(true, Ordering::Relaxed);
+                self.ws_writer.lock().await.send(msg).await?;
             }
         }
 
@@ -108,29 +129,100 @@ impl Session {
     }
 
     /// Sends client messages to the gRPC server
-    async fn process_client_message(
+    async fn process_client_message(self: Arc<Self>, message: ClientMessage) {
+        let response: Option<CommandResponse> = match message.command {
+            ClientMessageType::Subscribe => self.clone().handle_subscription(message).await,
+            ClientMessageType::Unsubscribe => self.clone().handle_unsub(message).await,
+            ClientMessageType::Message => self.clone().handle_message(message).await,
+        };
+
+        if response.is_some() {
+            self.process_transmissions(response.unwrap().transmissions)
+                .await
+                .expect("Failure trying to respond to client");
+        }
+    }
+
+    async fn handle_subscription(
         self: Arc<Self>,
         message: ClientMessage,
-    ) -> TungsteniteResult<()> {
+    ) -> Option<CommandResponse> {
+        if let Some(true) = self.subscriptions.read().await.get(&message.identifier) {
+            println!("Already subscribed to {}", message.identifier);
+            return None;
+        }
+
+        let identifier = message.identifier.clone();
+
+        let response = self
+            .clone()
+            .send_command(message)
+            .await
+            .expect("Error while subscribing");
+
+        self.subscriptions.write().await.insert(identifier, true);
+
+        Some(response)
+    }
+
+    async fn handle_unsub(self: Arc<Self>, message: ClientMessage) -> Option<CommandResponse> {
+        match self.subscriptions.read().await.get(&message.identifier) {
+            Some(false) | None => {
+                println!("Unrecognized subscription: {}", message.identifier);
+                return None;
+            }
+            _ => (),
+        }
+
+        let identifier = message.identifier.clone();
+
+        let response = self
+            .clone()
+            .send_command(message)
+            .await
+            .expect("Error while unsubscribing");
+
+        self.subscriptions.write().await.remove(&identifier);
+
+        Some(response)
+    }
+
+    async fn handle_message(self: Arc<Self>, message: ClientMessage) -> Option<CommandResponse> {
+        match self.subscriptions.read().await.get(&message.identifier) {
+            Some(false) | None => {
+                println!("Unrecognized subscription: {}", message.identifier);
+                return None;
+            }
+            _ => (),
+        }
+
+        let response = self
+            .clone()
+            .send_command(message)
+            .await
+            .expect("Error while sending message");
+
+        Some(response)
+    }
+
+    async fn send_command(
+        self: Arc<Self>,
+        message: ClientMessage,
+    ) -> Result<CommandResponse, Box<dyn std::error::Error>> {
         let response = self
             .app
             .controller
             .send_command(
-                message.command,
+                message.command.to_string(),
                 message.identifier,
                 self.identifiers.clone(),
                 message.data.unwrap_or(String::from("")),
             )
-            .await
-            .expect("Failed gRPC connection");
+            .await?;
 
         println!("[gRPC response] - {:?}", response);
 
-        self.process_transmissions(response.transmissions)
-            .await
-            .expect("Failure trying to respond to client");
-
-        Ok(())
+        Ok(response)
     }
 
     /// iterate trough a vector of messages and send each of them to client
@@ -142,7 +234,7 @@ impl Session {
 
         let mut future = stream::iter(transmissions);
 
-        for transmission in future.next().await {
+        while let Some(transmission) = future.next().await {
             writer.send(Message::text(transmission)).await?;
         }
 
