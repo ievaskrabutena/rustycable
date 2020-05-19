@@ -51,4 +51,24 @@ impl RpcController {
         let response = client.command(message).await?;
         Ok(response.into_inner())
     }
+
+    /// Sends a `Disconnect` message to gRPC server
+    pub async fn disconnect(
+        &self,
+        identifiers: String,
+        subscriptions: Vec<String>,
+        path: String,
+        headers: HashMap<String, String>,
+    ) -> Result<DisconnectResponse, Box<dyn std::error::Error>> {
+        let mut client = self.client.clone();
+        let request = DisconnectRequest {
+            identifiers,
+            subscriptions,
+            path,
+            headers,
+        };
+
+        let response = client.disconnect(request).await?;
+        Ok(response.into_inner())
+    }
 }

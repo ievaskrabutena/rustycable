@@ -160,7 +160,17 @@ impl Session {
             .await
             .expect("Error while subscribing");
 
-        self.subscriptions.write().await.insert(identifier, true);
+        self.subscriptions
+            .write()
+            .await
+            .insert(identifier.clone(), true);
+
+        response.streams.iter().for_each(|stream| {
+            self.app
+                .clone()
+                .subscribe_session(self.clone(), stream.clone(), identifier.clone())
+                .expect("unable to subscribe to stream")
+        });
 
         Some(response)
     }
@@ -237,6 +247,28 @@ impl Session {
         while let Some(transmission) = future.next().await {
             writer.send(Message::text(transmission)).await?;
         }
+
+        Ok(())
+    }
+
+    pub async fn send_broadcast(
+        self: Arc<Self>,
+        data: &str,
+        identifier: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if self.closed.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        let json_data: serde_json::Value = serde_json::from_str(data).unwrap();
+
+        let mut writer = self.ws_writer.lock().await;
+        let message = serde_json::to_string(
+            &serde_json::json!({ "identifier": identifier, "message": json_data }),
+        )
+        .expect("unable to convert JSON");
+
+        writer.send(Message::text(message)).await?;
 
         Ok(())
     }

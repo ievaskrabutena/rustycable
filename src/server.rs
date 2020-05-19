@@ -83,6 +83,8 @@ async fn handle_connection(
 
     let session = Arc::new(Session::new(app.clone(), headers, uri, ws_stream).await);
 
+    app.add_session(session.clone());
+
     tokio::try_join!(
         session.clone().read_messages(),
         session.clone().schedule_ping()
