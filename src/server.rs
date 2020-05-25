@@ -54,7 +54,7 @@ async fn handle_connection(
     let ws_stream = accept_hdr_async(
         stream,
         |request: &Request, response: Response| -> Result<Response, ErrorResponse> {
-            uri = request.uri().path().to_string();
+            uri = request.uri().to_string();
 
             request
                 .headers()
@@ -81,14 +81,18 @@ async fn handle_connection(
     .await
     .expect("Failed to accept");
 
-    let session = Arc::new(Session::new(app.clone(), headers, uri, ws_stream).await);
+    let session = Session::new(app.clone(), headers, uri, ws_stream).await;
 
-    app.add_session(session.clone());
+    if session.is_some() {
+        let session = Arc::new(session.unwrap());
 
-    tokio::try_join!(
-        session.clone().read_messages(),
-        session.clone().schedule_ping()
-    )?;
+        app.add_session(session.clone());
+
+        tokio::try_join!(
+            session.clone().read_messages(),
+            session.clone().schedule_ping()
+        )?;
+    }
 
     Ok(())
 }

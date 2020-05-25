@@ -1,6 +1,7 @@
 use super::RustyCable;
 
 use super::anycable::CommandResponse;
+use super::anycable::Status;
 use chrono::Utc;
 use futures_util::stream::{self, SplitSink, SplitStream, StreamExt};
 use futures_util::SinkExt;
@@ -76,7 +77,7 @@ impl Session {
         headers: HashMap<String, String>,
         uri: String,
         ws_stream: WebSocketStream<TcpStream>,
-    ) -> Session {
+    ) -> Option<Session> {
         let uid = fetch_or_create_uid(&headers);
 
         let response = app
@@ -85,9 +86,16 @@ impl Session {
             .await
             .expect("Failed gRPC connection");
 
-        println!("[gRPC response] - {:?}", response);
+        let (mut ws_writer, ws_reader) = ws_stream.split();
 
-        let (ws_writer, ws_reader) = ws_stream.split();
+        if response.status == Status::Failure as i32 {
+            ws_writer
+                .send(Message::Close(None))
+                .await
+                .expect("Error when closing connection");
+        }
+
+        println!("[gRPC response] - {:?}", response);
 
         let session = Session {
             app,
@@ -106,7 +114,7 @@ impl Session {
             .await
             .expect("Failure trying to respond to client");
 
-        session
+        Some(session)
     }
 
     /// Waits for incoming messages from the client
