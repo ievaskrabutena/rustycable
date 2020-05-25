@@ -93,6 +93,8 @@ impl Session {
                 .send(Message::Close(None))
                 .await
                 .expect("Error when closing connection");
+
+            return None;
         }
 
         println!("[gRPC response] - {:?}", response);
