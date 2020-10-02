@@ -1,7 +1,7 @@
-use super::RustyCable;
-
 use super::anycable::CommandResponse;
 use super::anycable::Status;
+use super::RustyCable;
+
 use chrono::Utc;
 use futures_util::stream::{self, SplitSink, SplitStream, StreamExt};
 use futures_util::SinkExt;
@@ -223,13 +223,14 @@ impl Session {
             .clone()
             .send_command(message)
             .await
-            .expect("Error while unsubscribing");
+            .expect("Error while seding the unsubscribe command");
 
         self.subscriptions.write().await.remove(&identifier);
 
         self.app
             .clone()
-            .unsubscribe_session(self.uid.clone(), identifier);
+            .unsubscribe_session(self.uid.clone(), identifier)
+            .expect("Could not unsubscribe");
 
         Some(response)
     }
@@ -263,7 +264,7 @@ impl Session {
                 message.command.to_string(),
                 message.identifier,
                 self.identifiers.clone(),
-                message.data.unwrap_or(String::from("")),
+                message.data.unwrap_or_default(),
             )
             .await?;
 
@@ -314,7 +315,7 @@ impl Session {
     pub async fn schedule_ping(self: Arc<Self>) -> TungsteniteResult<()> {
         let mut interval = tokio::time::interval(PING_INTERVAL);
 
-        while let Some(_) = interval.next().await {
+        while interval.next().await.is_some() {
             if self.closed.load(Ordering::Relaxed) {
                 return Ok(());
             }

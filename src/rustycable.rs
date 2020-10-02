@@ -18,7 +18,7 @@ impl RustyCable {
 
         Ok(RustyCable {
             controller,
-            hub: Hub::new(),
+            hub: Hub::create_hub_and_get_sender(),
         })
     }
 
@@ -35,7 +35,7 @@ impl RustyCable {
         session: Arc<Session>,
         stream: String,
         identifier: String,
-    ) -> Result<(), Box<std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.hub.send(HubAction::Subscribe {
             session_id: session.uid.clone(),
             stream,

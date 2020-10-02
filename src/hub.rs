@@ -1,5 +1,5 @@
 use super::session::Session;
-use futures_util::{future, pin_mut, stream::TryStreamExt, StreamExt};
+use futures_util::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -24,7 +24,7 @@ pub enum HubAction {
         stream: String,
         data: serde_json::Value,
     },
-    Shutdown,
+    _Shutdown,
 }
 
 pub struct Hub {
@@ -38,7 +38,7 @@ pub struct Hub {
 
 impl Hub {
     /// Create a hub and return a sender to send data to Hub
-    pub fn new() -> UnboundedSender<HubAction> {
+    pub fn create_hub_and_get_sender() -> UnboundedSender<HubAction> {
         let (tx, rx) = mpsc::unbounded_channel();
 
         tokio::spawn(Hub::start(rx));
@@ -91,7 +91,7 @@ impl Hub {
                     );
                     hub.broadcast(stream, data.as_str().unwrap()).await;
                 }
-                HubAction::Shutdown => break,
+                HubAction::_Shutdown => break,
             }
         }
     }
@@ -101,7 +101,7 @@ impl Hub {
         self.sessions.insert(session.uid.clone(), session.clone());
         self.identifiers
             .entry(session.identifiers.clone())
-            .or_insert(HashMap::new());
+            .or_insert_with(HashMap::new);
 
         self.identifiers
             .get_mut(&session.identifiers)
@@ -125,7 +125,9 @@ impl Hub {
     }
 
     fn subscribe_session(&mut self, session_id: String, stream: String, identifier: String) {
-        self.streams.entry(stream.clone()).or_insert(HashMap::new());
+        self.streams
+            .entry(stream.clone())
+            .or_insert_with(HashMap::new);
 
         self.streams
             .get_mut(&stream)
@@ -134,12 +136,12 @@ impl Hub {
 
         self.session_streams
             .entry(session_id.clone())
-            .or_insert(HashMap::new());
+            .or_insert_with(HashMap::new);
 
         let session_streams = self.session_streams.get_mut(&session_id).unwrap();
         session_streams
             .entry(identifier.clone())
-            .or_insert(Vec::new());
+            .or_insert_with(Vec::new);
         session_streams.get_mut(&identifier).unwrap().push(stream);
     }
 
