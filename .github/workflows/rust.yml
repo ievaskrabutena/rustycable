@@ -28,6 +28,6 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
     - name: Install AnyT
-      run: gem install anyt
+      run: gem install anyt -v 0.8.3
     - name: Run AnyCable conformance tests
       run: anyt -c "./target/debug/rustycable" --target-url="ws://localhost:8081/cable"
