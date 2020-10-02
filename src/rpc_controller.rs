@@ -45,7 +45,7 @@ impl RpcController {
             command,
             identifier,
             connection_identifiers,
-            data: data,
+            data,
         };
 
         let response = client.command(message).await?;

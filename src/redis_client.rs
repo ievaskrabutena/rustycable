@@ -1,7 +1,6 @@
 use crate::RustyCable;
 use futures_util::StreamExt as _;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -15,14 +14,12 @@ impl redis::FromRedisValue for RedisMessage {
         match *v {
             redis::Value::Data(ref value) => match serde_json::from_slice(value) {
                 Ok(v) => Ok(v),
-                Err(_) => {
-                    Err(((redis::ErrorKind::TypeError, "Unable to parse given value")).into())
-                }
+                Err(_) => Err((redis::ErrorKind::TypeError, "Unable to parse given value").into()),
             },
-            _ => Err(((
+            _ => Err((
                 redis::ErrorKind::ResponseError,
                 "Incorrect data received from Redis",
-            ))
+            )
                 .into()),
         }
     }

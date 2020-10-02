@@ -44,7 +44,7 @@ async fn accept_connection(peer: SocketAddr, stream: TcpStream, app: Arc<RustyCa
 
 /// Makes a handshake with the WebSocket request, then creates a session
 async fn handle_connection(
-    peer: SocketAddr,
+    _peer: SocketAddr,
     stream: TcpStream,
     app: Arc<RustyCable>,
 ) -> TungsteniteResult<()> {
@@ -66,14 +66,14 @@ async fn handle_connection(
                     );
                 });
 
-            let (mut parts, body) = response.into_parts();
+            let (mut parts, _) = response.into_parts();
 
             parts.headers.insert(
                 "Sec-Websocket-Protocol",
                 HeaderValue::from_str("actioncable-v1-json").unwrap(),
             );
 
-            let response_with_protocol = Response::from_parts(parts, body);
+            let response_with_protocol = Response::from_parts(parts, ());
 
             Ok(response_with_protocol)
         },
@@ -83,8 +83,8 @@ async fn handle_connection(
 
     let session = Session::new(app.clone(), headers, uri, ws_stream).await;
 
-    if session.is_some() {
-        let session = Arc::new(session.unwrap());
+    if let Some(inner_session) = session {
+        let session = Arc::new(inner_session);
 
         app.add_session(session.clone());
 
